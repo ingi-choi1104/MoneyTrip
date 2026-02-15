@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.mdpi.com)",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:velog.io)",
+      "WebFetch(domain:api.ncloud-docs.com)",
+      "WebFetch(domain:sooeun67.github.io)",
+      "WebFetch(domain:www.toolify.ai)",
+      "WebFetch(domain:goldenegg-goose.com)",
+      "WebFetch(domain:www.oursky.substack.com)",
+      "WebFetch(domain:docs.tosspayments.com)",
+      "Bash(flutter analyze:*)",
+      "WebFetch(domain:chaquo.com)",
+      "WebFetch(domain:ocr.space)",
+      "WebFetch(domain:docs.tabscanner.com)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter build:*)"
+    ]
+  }
+}
