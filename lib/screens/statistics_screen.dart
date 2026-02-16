@@ -60,7 +60,7 @@ class StatisticsScreen extends StatelessWidget {
   Widget _buildSummaryCards(ExpenseProvider provider) {
     final currencyFormat = NumberFormat.currency(
       locale: 'ko_KR',
-      symbol: '₩',
+      symbol: provider.currencySymbol,
       decimalDigits: 0,
     );
 
@@ -221,7 +221,7 @@ class StatisticsScreen extends StatelessWidget {
     final categoryData = provider.expensesByCategory;
     final currencyFormat = NumberFormat.currency(
       locale: 'ko_KR',
-      symbol: '₩',
+      symbol: provider.currencySymbol,
       decimalDigits: 0,
     );
 

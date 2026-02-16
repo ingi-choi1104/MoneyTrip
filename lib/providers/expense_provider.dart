@@ -215,15 +215,20 @@ class ExpenseProvider extends ChangeNotifier {
     notifyListeners();
     _dbHelper.saveSetting('sms_auto_register', value.toString());
 
-    if (value && !SmsService.instance.isInitialized) {
-      SmsService.instance.requestAndInitialize().then((granted) {
-        if (!granted) {
-          _isSmsAutoRegister = false;
-          SmsService.instance.enabled = false;
-          _dbHelper.saveSetting('sms_auto_register', 'false');
-          notifyListeners();
-        }
-      });
+    if (value) {
+      // 활성화 시점부터 새 문자만 처리하도록 시각 리셋
+      SmsService.instance.resetLastCheckTime();
+
+      if (!SmsService.instance.isInitialized) {
+        SmsService.instance.requestAndInitialize().then((granted) {
+          if (!granted) {
+            _isSmsAutoRegister = false;
+            SmsService.instance.enabled = false;
+            _dbHelper.saveSetting('sms_auto_register', 'false');
+            notifyListeners();
+          }
+        });
+      }
     }
   }
 
@@ -231,12 +236,10 @@ class ExpenseProvider extends ChangeNotifier {
   Future<void> _loadPopupNotification() async {
     final value = await _dbHelper.getSetting('popup_notification');
     _isPopupNotification = value == 'true';
-    SmsService.instance.popupEnabled = _isPopupNotification;
   }
 
   void setPopupNotification(bool value) {
     _isPopupNotification = value;
-    SmsService.instance.popupEnabled = value;
     notifyListeners();
     _dbHelper.saveSetting('popup_notification', value.toString());
   }

@@ -1,9 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../providers/expense_provider.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  Future<void> _handlePopupToggle(ExpenseProvider provider, bool value) async {
+    if (!value) {
+      // 끌 때는 바로 끔
+      provider.setPopupNotification(false);
+      return;
+    }
+
+    // 켤 때: 알림 권한 요청
+    final plugin = FlutterLocalNotificationsPlugin();
+    final android = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    if (android == null) {
+      // Android가 아니면 그냥 켜기
+      provider.setPopupNotification(true);
+      return;
+    }
+
+    final granted = await android.requestNotificationsPermission();
+    if (granted == true) {
+      provider.setPopupNotification(true);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('알림 권한이 거부되었습니다. 시스템 설정에서 허용해주세요.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +87,6 @@ class SettingsScreen extends StatelessWidget {
                 enabled: true,
                 onChanged: (value) {
                   provider.setSmsAutoRegister(value);
-                  // 문자 자동 등록을 끄면 팝업 알림도 끔
                   if (!value && provider.isPopupNotification) {
                     provider.setPopupNotification(false);
                   }
@@ -70,7 +104,7 @@ class SettingsScreen extends StatelessWidget {
                     : '문자 자동 등록을 먼저 활성화하세요',
                 value: provider.isPopupNotification,
                 enabled: provider.isSmsAutoRegister,
-                onChanged: (value) => provider.setPopupNotification(value),
+                onChanged: (value) => _handlePopupToggle(provider, value),
               ),
 
               const SizedBox(height: 20),

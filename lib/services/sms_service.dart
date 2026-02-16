@@ -123,8 +123,6 @@ class SmsService {
   bool _enabled = false;
   set enabled(bool v) => _enabled = v;
 
-  bool _popupEnabled = false;
-  set popupEnabled(bool v) => _popupEnabled = v;
 
   bool _listenerRegistered = false;
   int _lastCheckTime = 0;
@@ -249,13 +247,6 @@ class SmsService {
       final expense = await _processSmsBody(body);
       if (expense != null) {
         debugPrint('[SMS-FG] 자동 등록: ${expense.title} ${expense.amount}원');
-
-        if (_popupEnabled) {
-          try {
-            await _showNotification(expense);
-          } catch (_) {}
-        }
-
         _expenseController.add(expense);
       }
 
@@ -286,40 +277,10 @@ class SmsService {
     );
   }
 
-  /// 앱 복귀 시 새 문자 확인 (inbox 직접 조회, 리스너 무관)
-  Future<List<Expense>> checkNewSms() async {
-    if (!_enabled) return [];
-
-    if (!_initialized) {
-      final ok = await initializeIfPermitted();
-      if (!ok) return [];
-    }
-
-    try {
-      final messages = await _telephony.getInboxSms(
-        columns: [SmsColumn.BODY, SmsColumn.DATE],
-        filter: SmsFilter.where(
-          SmsColumn.DATE,
-        ).greaterThan(_lastCheckTime.toString()),
-        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-      );
-
-      debugPrint('[SMS] 새 문자 ${messages.length}건');
-
-      final created = <Expense>[];
-      for (final msg in messages) {
-        final body = msg.body;
-        if (body == null || body.isEmpty) continue;
-        final expense = await _processSmsBody(body);
-        if (expense != null) created.add(expense);
-      }
-
-      _updateLastCheckTime();
-      return created;
-    } catch (e) {
-      debugPrint('[SMS] 새 문자 확인 실패: $e');
-      return [];
-    }
+  /// _lastCheckTime을 현재 시각으로 리셋 (활성화 시점부터 새 문자만 처리)
+  void resetLastCheckTime() {
+    _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
+    _dbHelper.saveSetting('sms_last_check', _lastCheckTime.toString());
   }
 
   Future<Expense?> _processSmsBody(String body) async {

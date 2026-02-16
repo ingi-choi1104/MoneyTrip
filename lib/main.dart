@@ -49,14 +49,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.resumed) {
       _provider.refreshData();
-
-      // 초기화 완료 상태에서만 새 문자 확인 (inbox 직접 조회)
-      if (SmsService.instance.isInitialized) {
-        final created = await SmsService.instance.checkNewSms();
-        if (created.isNotEmpty && _provider.isPopupNotification) {
-          _showSmsPopup(created);
-        }
-      }
     }
   }
 
