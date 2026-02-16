@@ -28,11 +28,23 @@ Future<void> backgroundSmsHandler(SmsMessage message) async {
     if (alreadyProcessed == 'true') return;
 
     final trips = await dbHelper.getAllTrips();
-    final dateOnly = DateTime(result.date.year, result.date.month, result.date.day);
+    final dateOnly = DateTime(
+      result.date.year,
+      result.date.month,
+      result.date.day,
+    );
     Trip? matchingTrip;
     for (final trip in trips) {
-      final start = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
-      final end = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+      final start = DateTime(
+        trip.startDate.year,
+        trip.startDate.month,
+        trip.startDate.day,
+      );
+      final end = DateTime(
+        trip.endDate.year,
+        trip.endDate.month,
+        trip.endDate.day,
+      );
       if (!dateOnly.isBefore(start) && !dateOnly.isAfter(end)) {
         matchingTrip = trip;
         break;
@@ -65,12 +77,18 @@ Future<void> backgroundSmsHandler(SmsMessage message) async {
   }
 }
 
-Future<void> _showBackgroundNotification(String? storeName, double amount) async {
+Future<void> _showBackgroundNotification(
+  String? storeName,
+  double amount,
+) async {
   final plugin = FlutterLocalNotificationsPlugin();
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-  await plugin.initialize(const InitializationSettings(android: androidSettings));
+  await plugin.initialize(
+    const InitializationSettings(android: androidSettings),
+  );
 
-  final amountStr = '${amount.toInt().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}원';
+  final amountStr =
+      '${amount.toInt().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}원';
 
   await plugin.show(
     DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -95,10 +113,18 @@ class SmsService {
 
   final Telephony _telephony = Telephony.instance;
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final FlutterLocalNotificationsPlugin _notifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
 
   bool _initialized = false;
   bool get isInitialized => _initialized;
+
+  /// 포그라운드에서 사용하는 인메모리 플래그 (DB 조회 대신 사용)
+  bool _enabled = false;
+  set enabled(bool v) => _enabled = v;
+
+  bool _popupEnabled = false;
+  set popupEnabled(bool v) => _popupEnabled = v;
 
   bool _listenerRegistered = false;
   int _lastCheckTime = 0;
@@ -155,7 +181,9 @@ class SmsService {
   Future<void> _setupAfterPermission() async {
     // 알림 초기화 (실패해도 계속)
     try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
       await _notifications.initialize(
         const InitializationSettings(android: androidSettings),
       );
@@ -166,7 +194,8 @@ class SmsService {
     // 마지막 확인 시각 로드
     final saved = await _dbHelper.getSetting('sms_last_check');
     if (saved != null) {
-      _lastCheckTime = int.tryParse(saved) ?? DateTime.now().millisecondsSinceEpoch;
+      _lastCheckTime =
+          int.tryParse(saved) ?? DateTime.now().millisecondsSinceEpoch;
     } else {
       _lastCheckTime = DateTime.now().millisecondsSinceEpoch;
       await _dbHelper.saveSetting('sms_last_check', _lastCheckTime.toString());
@@ -208,18 +237,23 @@ class SmsService {
     try {
       final body = message.body;
       if (body == null || body.isEmpty) return;
-      debugPrint('[SMS-FG] 문자 수신: ${body.substring(0, body.length.clamp(0, 40))}...');
+      debugPrint(
+        '[SMS-FG] 문자 수신: ${body.substring(0, body.length.clamp(0, 40))}...',
+      );
 
-      final isEnabled = await _dbHelper.getSetting('sms_auto_register');
-      if (isEnabled != 'true') return;
+      if (!_enabled) {
+        debugPrint('[SMS-FG] 자동등록 비활성화 상태 — 무시');
+        return;
+      }
 
       final expense = await _processSmsBody(body);
       if (expense != null) {
         debugPrint('[SMS-FG] 자동 등록: ${expense.title} ${expense.amount}원');
 
-        final popupEnabled = await _dbHelper.getSetting('popup_notification');
-        if (popupEnabled == 'true') {
-          try { await _showNotification(expense); } catch (_) {}
+        if (_popupEnabled) {
+          try {
+            await _showNotification(expense);
+          } catch (_) {}
         }
 
         _expenseController.add(expense);
@@ -232,7 +266,8 @@ class SmsService {
   }
 
   Future<void> _showNotification(Expense expense) async {
-    final amountStr = '${expense.amount.toInt().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}원';
+    final amountStr =
+        '${expense.amount.toInt().toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}원';
 
     await _notifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
@@ -253,8 +288,7 @@ class SmsService {
 
   /// 앱 복귀 시 새 문자 확인 (inbox 직접 조회, 리스너 무관)
   Future<List<Expense>> checkNewSms() async {
-    final isEnabled = await _dbHelper.getSetting('sms_auto_register');
-    if (isEnabled != 'true') return [];
+    if (!_enabled) return [];
 
     if (!_initialized) {
       final ok = await initializeIfPermitted();
@@ -264,8 +298,9 @@ class SmsService {
     try {
       final messages = await _telephony.getInboxSms(
         columns: [SmsColumn.BODY, SmsColumn.DATE],
-        filter: SmsFilter.where(SmsColumn.DATE)
-            .greaterThan(_lastCheckTime.toString()),
+        filter: SmsFilter.where(
+          SmsColumn.DATE,
+        ).greaterThan(_lastCheckTime.toString()),
         sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
       );
 
@@ -320,8 +355,16 @@ class SmsService {
   Trip? _findMatchingTrip(List<Trip> trips, DateTime date) {
     final dateOnly = DateTime(date.year, date.month, date.day);
     for (final trip in trips) {
-      final start = DateTime(trip.startDate.year, trip.startDate.month, trip.startDate.day);
-      final end = DateTime(trip.endDate.year, trip.endDate.month, trip.endDate.day);
+      final start = DateTime(
+        trip.startDate.year,
+        trip.startDate.month,
+        trip.startDate.day,
+      );
+      final end = DateTime(
+        trip.endDate.year,
+        trip.endDate.month,
+        trip.endDate.day,
+      );
       if (!dateOnly.isBefore(start) && !dateOnly.isAfter(end)) {
         return trip;
       }

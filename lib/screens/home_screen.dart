@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../providers/expense_provider.dart';
 import '../models/expense.dart';
 import '../models/income.dart';
 import '../services/exchange_rate_service.dart';
 import '../services/export_service.dart';
+import '../services/ad_helper.dart';
 import 'add_expense_screen.dart';
 import 'add_income_screen.dart';
 import 'statistics_screen.dart';
@@ -27,16 +29,41 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isNewestFirst = true;
   bool _hasInitialized = false;
   String _paymentFilter = 'all'; // 'all', 'cash', 'card'
+  BannerAd? _bannerAd;
 
   @override
   void initState() {
     super.initState();
+    _loadBannerAd();
     _loadExchangeRates();
 
     // 다음 프레임에서 날짜 선택 (Provider가 준비된 후)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _selectInitialDate();
     });
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: AdHelper.bannerAdUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {});
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+        },
+      ),
+    )..load();
   }
 
   void _selectInitialDate() {
@@ -405,6 +432,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? _buildPreTripList(context, provider, sortedExpenses)
                     : _buildExpenseList(context, provider, sortedExpenses),
               ),
+              if (_bannerAd != null)
+                SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: _bannerAd!.size.width.toDouble(),
+                    height: _bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  ),
+                ),
             ],
           );
         },

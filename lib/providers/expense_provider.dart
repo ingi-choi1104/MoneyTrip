@@ -203,6 +203,7 @@ class ExpenseProvider extends ChangeNotifier {
   Future<void> _loadSmsAutoRegister() async {
     final value = await _dbHelper.getSetting('sms_auto_register');
     _isSmsAutoRegister = value == 'true';
+    SmsService.instance.enabled = _isSmsAutoRegister;
     if (_isSmsAutoRegister) {
       SmsService.instance.initializeIfPermitted();
     }
@@ -210,14 +211,15 @@ class ExpenseProvider extends ChangeNotifier {
 
   void setSmsAutoRegister(bool value) {
     _isSmsAutoRegister = value;
+    SmsService.instance.enabled = value;
     notifyListeners();
     _dbHelper.saveSetting('sms_auto_register', value.toString());
 
     if (value && !SmsService.instance.isInitialized) {
-      // 최초 1회만 권한 요청 + 초기화. 이미 초기화됐으면 아무것도 안 함.
       SmsService.instance.requestAndInitialize().then((granted) {
         if (!granted) {
           _isSmsAutoRegister = false;
+          SmsService.instance.enabled = false;
           _dbHelper.saveSetting('sms_auto_register', 'false');
           notifyListeners();
         }
@@ -229,20 +231,22 @@ class ExpenseProvider extends ChangeNotifier {
   Future<void> _loadPopupNotification() async {
     final value = await _dbHelper.getSetting('popup_notification');
     _isPopupNotification = value == 'true';
+    SmsService.instance.popupEnabled = _isPopupNotification;
   }
 
   void setPopupNotification(bool value) {
     _isPopupNotification = value;
-    notifyListeners(); // UI 즉시 업데이트
-
-    // DB 저장 (백그라운드)
+    SmsService.instance.popupEnabled = value;
+    notifyListeners();
     _dbHelper.saveSetting('popup_notification', value.toString());
   }
 
   // Category management
   Future<void> loadCategories() async {
     final dbCategories = await _dbHelper.getCategories();
-    categories = dbCategories.map((cat) => Map<String, dynamic>.from(cat)).toList();
+    categories = dbCategories
+        .map((cat) => Map<String, dynamic>.from(cat))
+        .toList();
     notifyListeners();
   }
 
@@ -271,7 +275,9 @@ class ExpenseProvider extends ChangeNotifier {
     return true;
   }
 
-  Future<void> replaceCategories(List<Map<String, dynamic>> newCategories) async {
+  Future<void> replaceCategories(
+    List<Map<String, dynamic>> newCategories,
+  ) async {
     await _dbHelper.replaceAllCategories(newCategories);
     await loadCategories();
   }

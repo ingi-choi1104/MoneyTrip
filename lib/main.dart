@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'providers/expense_provider.dart';
 import 'screens/trips_list_screen.dart';
 import 'services/sms_service.dart';
@@ -12,6 +13,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MobileAds.instance.initialize();
   await initializeDateFormatting('ko_KR', null);
   runApp(const MyApp());
 }

@@ -4,10 +4,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import '../providers/expense_provider.dart';
 import '../services/receipt_scanner.dart';
+import '../services/ad_helper.dart';
 import '../models/expense.dart';
 import '../services/exchange_rate_service.dart';
 import 'location_picker_screen.dart';
@@ -43,6 +45,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   double? _longitude;
   String? _locationName;
 
+  // 배너 광고
+  BannerAd? _bannerAd;
+
   static const List<String> _availableCurrencies = [
     'KRW', 'USD', 'EUR', 'JPY', 'CNY', 'GBP', 'THB', 'VND', 'AUD', 'CAD',
   ];
@@ -55,6 +60,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
+    _loadBannerAd();
     if (widget.expense != null) {
       _isEditing = true;
       _titleController.text = widget.expense!.title ?? '';
@@ -106,10 +112,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   void dispose() {
+    _bannerAd?.dispose();
     _amountController.dispose();
     _titleController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  void _loadBannerAd() {
+    _bannerAd = BannerAd(
+      adUnitId: AdHelper.bannerAdUnitId,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (ad) {
+          setState(() {});
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          _bannerAd = null;
+        },
+      ),
+    )..load();
   }
 
   Future<void> _pickImage() async {
@@ -903,11 +927,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       body: Consumer<ExpenseProvider>(
         builder: (context, provider, child) {
           final c = provider.isCompactMode;
-          return Form(
-            key: _formKey,
-            child: ListView(
-              padding: EdgeInsets.all(c ? 8 : 16),
-              children: [
+          return Column(
+            children: [
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: ListView(
+                    padding: EdgeInsets.all(c ? 8 : 16),
+                    children: [
                 // 영수증 스캔
                 if (!_isEditing)
                   Container(
@@ -1640,8 +1667,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 ),
 
                 const SizedBox(height: 100),
-              ],
-            ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_bannerAd != null)
+                SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: _bannerAd!.size.width.toDouble(),
+                    height: _bannerAd!.size.height.toDouble(),
+                    child: AdWidget(ad: _bannerAd!),
+                  ),
+                ),
+            ],
           );
         },
       ),

@@ -17,7 +17,9 @@
       "WebFetch(domain:ocr.space)",
       "WebFetch(domain:docs.tabscanner.com)",
       "Bash(flutter pub:*)",
-      "Bash(flutter build:*)"
+      "Bash(flutter build:*)",
+      "Bash(1)",
+      "Bash(flutter clean:*)"
     ]
   }
 }
