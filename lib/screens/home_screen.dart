@@ -7,6 +7,7 @@ import '../models/expense.dart';
 import '../models/income.dart';
 import '../services/exchange_rate_service.dart';
 import '../services/export_service.dart';
+import '../services/trip_backup_service.dart';
 import '../services/ad_helper.dart';
 import 'add_expense_screen.dart';
 import 'add_income_screen.dart';
@@ -147,43 +148,43 @@ class _HomeScreenState extends State<HomeScreen> {
   void _exportToExcel(BuildContext context) async {
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     if (provider.activeTrip == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('활성화된 여행이 없습니다')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('활성화된 여행이 없습니다')));
       return;
     }
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('엑셀 파일을 생성하고 있습니다...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('엑셀 파일을 생성하고 있습니다...')));
       await ExportService.exportToExcel(
         trip: provider.activeTrip!,
         expenses: provider.expenses,
         incomes: provider.incomes,
         currencySymbol: provider.currencySymbol,
       );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('엑셀 파일이 생성되었습니다')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('엑셀 파일이 생성되었습니다')));
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류 발생: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('오류 발생: $e')));
     }
   }
 
   void _exportToPdf(BuildContext context) async {
     final provider = Provider.of<ExpenseProvider>(context, listen: false);
     if (provider.activeTrip == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('활성화된 여행이 없습니다')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('활성화된 여행이 없습니다')));
       return;
     }
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF 파일을 생성하고 있습니다...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('PDF 파일을 생성하고 있습니다...')));
       await ExportService.exportToPdf(
         trip: provider.activeTrip!,
         expenses: provider.expenses,
@@ -191,9 +192,54 @@ class _HomeScreenState extends State<HomeScreen> {
         currencySymbol: provider.currencySymbol,
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오류 발생: $e')),
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('오류 발생: $e')));
+    }
+  }
+
+  void _exportTripBackup(BuildContext context) async {
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    if (provider.activeTrip == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('활성화된 여행이 없습니다')));
+      return;
+    }
+    try {
+      await TripBackupService.exportTrip(
+        trip: provider.activeTrip!,
+        expenses: provider.expenses,
+        incomes: provider.incomes,
       );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
+    }
+  }
+
+  void _importTripBackup(BuildContext context) async {
+    final provider = Provider.of<ExpenseProvider>(context, listen: false);
+    try {
+      final tripsData = await TripBackupService.importTrips();
+      if (tripsData == null || tripsData.isEmpty) return;
+
+      int importedCount = 0;
+      for (final tripData in tripsData) {
+        await provider.importTripData(tripData);
+        importedCount++;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$importedCount개의 여행을 불러왔습니다')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('불러오기 실패: $e')));
     }
   }
 
@@ -268,6 +314,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 _exportToExcel(context);
               } else if (value == 'pdf') {
                 _exportToPdf(context);
+              } else if (value == 'backup') {
+                _exportTripBackup(context);
+              } else if (value == 'restore') {
+                _importTripBackup(context);
               }
             },
             itemBuilder: (context) => [
@@ -285,9 +335,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 value: 'pdf',
                 child: Row(
                   children: [
-                    Icon(Icons.picture_as_pdf, color: Color(0xFFE53935), size: 20),
+                    Icon(
+                      Icons.picture_as_pdf,
+                      color: Color(0xFFE53935),
+                      size: 20,
+                    ),
                     SizedBox(width: 8),
                     Text('PDF로 출력'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'backup',
+                child: Row(
+                  children: [
+                    Icon(Icons.save_alt, color: Color(0xFF6C63FF), size: 20),
+                    SizedBox(width: 8),
+                    Text('여행 데이터 저장'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'restore',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file, color: Color(0xFF6C63FF), size: 20),
+                    SizedBox(width: 8),
+                    Text('여행 불러오기'),
                   ],
                 ),
               ),
@@ -354,10 +429,15 @@ class _HomeScreenState extends State<HomeScreen> {
           final List<Expense> filteredExpenses;
           if (_isPreTripSelected) {
             filteredExpenses = provider.expenses
-                .where((e) => e.date.isBefore(DateTime(
-                    provider.activeTrip!.startDate.year,
-                    provider.activeTrip!.startDate.month,
-                    provider.activeTrip!.startDate.day)))
+                .where(
+                  (e) => e.date.isBefore(
+                    DateTime(
+                      provider.activeTrip!.startDate.year,
+                      provider.activeTrip!.startDate.month,
+                      provider.activeTrip!.startDate.day,
+                    ),
+                  ),
+                )
                 .toList();
           } else if (_selectedDate == null) {
             filteredExpenses = provider.expenses;
@@ -367,7 +447,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
           final paymentFiltered = _paymentFilter == 'all'
               ? filteredExpenses
-              : filteredExpenses.where((e) => e.paymentMethod == _paymentFilter).toList();
+              : filteredExpenses
+                    .where((e) => e.paymentMethod == _paymentFilter)
+                    .toList();
 
           final sortedExpenses = _sortExpenses(paymentFiltered);
 
@@ -454,8 +536,10 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      AddExpenseScreen(initialDate: _selectedDate, isPreTrip: _isPreTripSelected),
+                  builder: (context) => AddExpenseScreen(
+                    initialDate: _selectedDate,
+                    isPreTrip: _isPreTripSelected,
+                  ),
                 ),
               );
             },
@@ -496,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> {
       displayExpenses = provider.getTotalExpensesByDate(_selectedDate!);
     }
 
-    final displayIncome = (_selectedDate == null && !_isPreTripSelected) ? provider.totalIncome : 0.0;
+    final displayIncome = provider.totalIncome;
 
     final displayExpensesKRW = _convertToKRW(
       displayExpenses,
@@ -526,14 +610,24 @@ class _HomeScreenState extends State<HomeScreen> {
           .where((e) => e.date.isBefore(tripStart))
           .fold(0.0, (sum, e) => sum + e.amount);
       balanceAtDate = provider.totalIncome - preTripExpenses;
-      balanceAtDateKRW = _convertToKRW(balanceAtDate, provider.selectedCurrency);
+      balanceAtDateKRW = _convertToKRW(
+        balanceAtDate,
+        provider.selectedCurrency,
+      );
     } else if (_selectedDate != null) {
-      final cutoff = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day + 1);
+      final cutoff = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day + 1,
+      );
       final cumulativeExpenses = provider.expenses
           .where((e) => e.date.isBefore(cutoff))
           .fold(0.0, (sum, e) => sum + e.amount);
       balanceAtDate = provider.totalIncome - cumulativeExpenses;
-      balanceAtDateKRW = _convertToKRW(balanceAtDate, provider.selectedCurrency);
+      balanceAtDateKRW = _convertToKRW(
+        balanceAtDate,
+        provider.selectedCurrency,
+      );
     }
 
     final c = provider.isCompactMode;
@@ -556,8 +650,30 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       child: c
-          ? _buildCompactSummaryContent(provider, currencyFormat, krwFormat, displayIncome, displayExpenses, displayIncomeKRW, displayExpensesKRW, remainingBalanceKRW, balanceAtDate, balanceAtDateKRW)
-          : _buildNormalSummaryContent(provider, currencyFormat, krwFormat, displayIncome, displayExpenses, displayIncomeKRW, displayExpensesKRW, remainingBalanceKRW, balanceAtDate, balanceAtDateKRW),
+          ? _buildCompactSummaryContent(
+              provider,
+              currencyFormat,
+              krwFormat,
+              displayIncome,
+              displayExpenses,
+              displayIncomeKRW,
+              displayExpensesKRW,
+              remainingBalanceKRW,
+              balanceAtDate,
+              balanceAtDateKRW,
+            )
+          : _buildNormalSummaryContent(
+              provider,
+              currencyFormat,
+              krwFormat,
+              displayIncome,
+              displayExpenses,
+              displayIncomeKRW,
+              displayExpensesKRW,
+              remainingBalanceKRW,
+              balanceAtDate,
+              balanceAtDateKRW,
+            ),
     );
   }
 
@@ -588,99 +704,165 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Row(
           children: [
-            if (!dateSelected) ...[
-              Expanded(
-                child: Column(
-                  children: [
-                    const Text('예산', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                    const SizedBox(height: 2),
-                    Text(
-                      currencyFormat.format(displayIncome),
-                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (showKRW)
-                      Text(krwFormat.format(displayIncomeKRW),
-                          style: const TextStyle(color: Colors.white60, fontSize: 9)),
-                  ],
-                ),
-              ),
-              Container(width: 1, height: showKRW ? 38 : 28, color: Colors.white30),
-            ],
             Expanded(
               child: Column(
                 children: [
-                  Text(dateLabel, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                  const SizedBox(height: 2),
-                  Text(
-                    currencyFormat.format(displayExpenses),
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
+                  const Text(
+                    '예산',
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
-                  if (showKRW)
-                    Text(krwFormat.format(displayExpensesKRW),
-                        style: const TextStyle(color: Colors.white60, fontSize: 9)),
-                ],
-              ),
-            ),
-            Container(width: 1, height: showKRW ? 38 : 28, color: Colors.white30),
-            Expanded(
-              child: Column(
-                children: [
-                  const Text('잔액', style: TextStyle(color: Colors.white70, fontSize: 10)),
                   const SizedBox(height: 2),
                   Text(
-                    currencyFormat.format(dateSelected ? balanceAtDate : provider.remainingBalance),
-                    style: TextStyle(
-                      color: (dateSelected ? balanceAtDate : provider.remainingBalance) >= 0
-                          ? Colors.greenAccent : Colors.redAccent,
+                    currencyFormat.format(displayIncome),
+                    style: const TextStyle(
+                      color: Colors.white,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (showKRW)
-                    Text(krwFormat.format(dateSelected ? balanceAtDateKRW : remainingBalanceKRW),
-                        style: TextStyle(
-                          color: (dateSelected ? balanceAtDate : provider.remainingBalance) >= 0
-                              ? Colors.greenAccent.withOpacity(0.7)
-                              : Colors.redAccent.withOpacity(0.7),
-                          fontSize: 9,
-                        )),
+                    Text(
+                      krwFormat.format(displayIncomeKRW),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 9,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              width: 1,
+              height: showKRW ? 38 : 28,
+              color: Colors.white30,
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currencyFormat.format(displayExpenses),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (showKRW)
+                    Text(
+                      krwFormat.format(displayExpensesKRW),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 9,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              width: 1,
+              height: showKRW ? 38 : 28,
+              color: Colors.white30,
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  const Text(
+                    '잔액',
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currencyFormat.format(
+                      dateSelected ? balanceAtDate : provider.remainingBalance,
+                    ),
+                    style: TextStyle(
+                      color:
+                          (dateSelected
+                                  ? balanceAtDate
+                                  : provider.remainingBalance) >=
+                              0
+                          ? Colors.greenAccent
+                          : Colors.redAccent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (showKRW)
+                    Text(
+                      krwFormat.format(
+                        dateSelected ? balanceAtDateKRW : remainingBalanceKRW,
+                      ),
+                      style: TextStyle(
+                        color:
+                            (dateSelected
+                                    ? balanceAtDate
+                                    : provider.remainingBalance) >=
+                                0
+                            ? Colors.greenAccent.withOpacity(0.7)
+                            : Colors.redAccent.withOpacity(0.7),
+                        fontSize: 9,
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
         ),
-        if (!dateSelected && provider.totalIncome > 0) ...[
-          const SizedBox(height: 8),
-          const Divider(color: Colors.white30, height: 1),
-          const SizedBox(height: 8),
-          Row(
+        Opacity(
+          opacity: provider.totalIncome > 0 ? 1.0 : 0.0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('사용률', style: TextStyle(color: Colors.white70, fontSize: 10)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: (provider.totalExpenses / provider.totalIncome).clamp(0.0, 1.0),
-                    backgroundColor: Colors.white30,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      provider.totalExpenses > provider.totalIncome ? Colors.redAccent : Colors.greenAccent,
-                    ),
-                    minHeight: 5,
+              const SizedBox(height: 8),
+              const Divider(color: Colors.white30, height: 1),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text(
+                    '사용률',
+                    style: TextStyle(color: Colors.white70, fontSize: 10),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${((provider.totalExpenses / provider.totalIncome) * 100).toStringAsFixed(0)}%',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: provider.totalIncome > 0
+                            ? ((provider.totalIncome - balanceAtDate) / provider.totalIncome)
+                                  .clamp(0.0, 1.0)
+                            : 0.0,
+                        backgroundColor: Colors.white30,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          balanceAtDate < 0
+                              ? Colors.redAccent
+                              : Colors.greenAccent,
+                        ),
+                        minHeight: 5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${provider.totalIncome > 0 ? (((provider.totalIncome - balanceAtDate) / provider.totalIncome) * 100).toStringAsFixed(0) : '0'}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ],
     );
   }
@@ -707,8 +889,12 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       dateLabel = '지출';
     }
-    final balanceValue = dateSelected ? balanceAtDate : provider.remainingBalance;
-    final balanceKRWValue = dateSelected ? balanceAtDateKRW : remainingBalanceKRW;
+    final balanceValue = dateSelected
+        ? balanceAtDate
+        : provider.remainingBalance;
+    final balanceKRWValue = dateSelected
+        ? balanceAtDateKRW
+        : remainingBalanceKRW;
 
     return Column(
       children: [
@@ -722,11 +908,19 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.currency_exchange, color: Colors.white, size: 16),
+                const Icon(
+                  Icons.currency_exchange,
+                  color: Colors.white,
+                  size: 16,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '1 ${provider.selectedCurrency} = ${krwFormat.format(_exchangeRates![provider.selectedCurrency])}',
-                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -735,53 +929,90 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
         Row(
           children: [
-            if (!dateSelected) ...[
-              Expanded(
-                child: Column(
-                  children: [
-                    const Text('예산', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                      currencyFormat.format(displayIncome),
-                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (showKRW) ...[
-                      const SizedBox(height: 2),
-                      Text(krwFormat.format(displayIncomeKRW), style: const TextStyle(color: Colors.white60, fontSize: 11)),
-                    ],
-                  ],
-                ),
-              ),
-              Container(width: 1, height: showKRW ? 50 : 38, color: Colors.white30),
-            ],
             Expanded(
               child: Column(
                 children: [
-                  Text(dateLabel, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  const Text(
+                    '예산',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                    currencyFormat.format(displayExpenses),
-                    style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    currencyFormat.format(displayIncome),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (showKRW) ...[
                     const SizedBox(height: 2),
-                    Text(krwFormat.format(displayExpensesKRW), style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                    Text(
+                      krwFormat.format(displayIncomeKRW),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ],
               ),
             ),
-            Container(width: 1, height: showKRW ? 50 : 38, color: Colors.white30),
+            Container(
+              width: 1,
+              height: showKRW ? 50 : 38,
+              color: Colors.white30,
+            ),
             Expanded(
               child: Column(
                 children: [
-                  const Text('잔액', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(
+                    dateLabel,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    currencyFormat.format(displayExpenses),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (showKRW) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      krwFormat.format(displayExpensesKRW),
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Container(
+              width: 1,
+              height: showKRW ? 50 : 38,
+              color: Colors.white30,
+            ),
+            Expanded(
+              child: Column(
+                children: [
+                  const Text(
+                    '잔액',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     currencyFormat.format(balanceValue),
                     style: TextStyle(
-                      color: balanceValue >= 0 ? Colors.greenAccent : Colors.redAccent,
+                      color: balanceValue >= 0
+                          ? Colors.greenAccent
+                          : Colors.redAccent,
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
                     ),
@@ -804,35 +1035,53 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        if (!dateSelected && provider.totalIncome > 0) ...[
-          const SizedBox(height: 12),
-          const Divider(color: Colors.white30, height: 1),
-          const SizedBox(height: 10),
-          Row(
+        Opacity(
+          opacity: provider.totalIncome > 0 ? 1.0 : 0.0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('사용률', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: (provider.totalExpenses / provider.totalIncome).clamp(0.0, 1.0),
-                    backgroundColor: Colors.white30,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      provider.totalExpenses > provider.totalIncome ? Colors.redAccent : Colors.greenAccent,
-                    ),
-                    minHeight: 6,
+              const SizedBox(height: 12),
+              const Divider(color: Colors.white30, height: 1),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Text(
+                    '사용률',
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${((provider.totalExpenses / provider.totalIncome) * 100).toStringAsFixed(1)}%',
-                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: provider.totalIncome > 0
+                            ? ((provider.totalIncome - balanceAtDate) / provider.totalIncome)
+                                  .clamp(0.0, 1.0)
+                            : 0.0,
+                        backgroundColor: Colors.white30,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          balanceAtDate < 0
+                              ? Colors.redAccent
+                              : Colors.greenAccent,
+                        ),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${provider.totalIncome > 0 ? (((provider.totalIncome - balanceAtDate) / provider.totalIncome) * 100).toStringAsFixed(1) : '0.0'}%',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ],
     );
   }
@@ -904,7 +1153,10 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Container(
         width: c ? 56 : 70,
-        padding: EdgeInsets.symmetric(horizontal: c ? 4 : 8, vertical: c ? 4 : 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: c ? 4 : 8,
+          vertical: c ? 4 : 8,
+        ),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF6C63FF) : Colors.white,
           borderRadius: BorderRadius.circular(c ? 10 : 16),
@@ -974,7 +1226,10 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: c ? 8 : 12, vertical: c ? 4 : 8),
+        padding: EdgeInsets.symmetric(
+          horizontal: c ? 8 : 12,
+          vertical: c ? 4 : 8,
+        ),
         decoration: BoxDecoration(
           color: _isPreTripSelected ? const Color(0xFFFF9F43) : Colors.white,
           borderRadius: BorderRadius.circular(c ? 10 : 16),
@@ -993,7 +1248,9 @@ class _HomeScreenState extends State<HomeScreen> {
               '여행 전',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: _isPreTripSelected ? Colors.white : const Color(0xFFFF9F43),
+                color: _isPreTripSelected
+                    ? Colors.white
+                    : const Color(0xFFFF9F43),
                 fontSize: c ? 10 : 12,
                 fontWeight: FontWeight.bold,
                 height: 1.2,
@@ -1012,7 +1269,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Text(
                   '$preTripCount건',
                   style: TextStyle(
-                    color: _isPreTripSelected ? Colors.white : const Color(0xFFFF9F43),
+                    color: _isPreTripSelected
+                        ? Colors.white
+                        : const Color(0xFFFF9F43),
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1069,8 +1328,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        AddExpenseScreen(initialDate: _selectedDate, isPreTrip: _isPreTripSelected),
+                    builder: (context) => AddExpenseScreen(
+                      initialDate: _selectedDate,
+                      isPreTrip: _isPreTripSelected,
+                    ),
                   ),
                 );
               },
@@ -1087,8 +1348,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) =>
-                        AddIncomeScreen(initialDate: _selectedDate, isPreTrip: _isPreTripSelected),
+                    builder: (context) => AddIncomeScreen(
+                      initialDate: _selectedDate,
+                      isPreTrip: _isPreTripSelected,
+                    ),
                   ),
                 );
               },
@@ -1106,7 +1369,10 @@ class _HomeScreenState extends State<HomeScreen> {
     Color color,
     VoidCallback onTap,
   ) {
-    final c = Provider.of<ExpenseProvider>(context, listen: false).isCompactMode;
+    final c = Provider.of<ExpenseProvider>(
+      context,
+      listen: false,
+    ).isCompactMode;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -1151,11 +1417,14 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_selectedDate == null) {
       filteredIncomes = List.from(provider.incomes);
     } else {
-      filteredIncomes = provider.incomes.where((i) =>
-        i.date.year == _selectedDate!.year &&
-        i.date.month == _selectedDate!.month &&
-        i.date.day == _selectedDate!.day,
-      ).toList();
+      filteredIncomes = provider.incomes
+          .where(
+            (i) =>
+                i.date.year == _selectedDate!.year &&
+                i.date.month == _selectedDate!.month &&
+                i.date.day == _selectedDate!.day,
+          )
+          .toList();
     }
 
     if (expenses.isEmpty && filteredIncomes.isEmpty) {
@@ -1226,10 +1495,9 @@ class _HomeScreenState extends State<HomeScreen> {
       provider.activeTrip!.startDate.month,
       provider.activeTrip!.startDate.day,
     );
-    final preTripIncomes = provider.incomes
-        .where((i) => i.date.isBefore(tripStart))
-        .toList()
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final preTripIncomes =
+        provider.incomes.where((i) => i.date.isBefore(tripStart)).toList()
+          ..sort((a, b) => b.date.compareTo(a.date));
 
     if (expenses.isEmpty && preTripIncomes.isEmpty) {
       return Center(
@@ -1321,9 +1589,9 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       onDismissed: (direction) {
         provider.deleteIncome(income.id!);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('예산이 삭제되었습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('예산이 삭제되었습니다')));
       },
       child: Container(
         margin: EdgeInsets.only(bottom: c ? 4 : 8),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/expense_provider.dart';
+import '../services/trip_backup_service.dart';
 import 'create_trip_screen.dart';
 import 'home_screen.dart';
 import 'settings_screen.dart';
@@ -58,6 +59,55 @@ class TripsListScreen extends StatelessWidget {
 
   String _getCountryFlag(String country) {
     return _countryFlags[country] ?? '🌍';
+  }
+
+  void _exportAllTrips(BuildContext context, ExpenseProvider provider) async {
+    if (provider.trips.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('저장할 여행이 없습니다')),
+      );
+      return;
+    }
+    try {
+      final expensesMap = await provider.getAllTripExpenses();
+      final incomesMap = await provider.getAllTripIncomes();
+      await TripBackupService.exportAllTrips(
+        trips: provider.trips,
+        expensesMap: expensesMap,
+        incomesMap: incomesMap,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장 실패: $e')),
+        );
+      }
+    }
+  }
+
+  void _importTrips(BuildContext context, ExpenseProvider provider) async {
+    try {
+      final tripsData = await TripBackupService.importTrips();
+      if (tripsData == null || tripsData.isEmpty) return;
+
+      int importedCount = 0;
+      for (final tripData in tripsData) {
+        await provider.importTripData(tripData);
+        importedCount++;
+      }
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$importedCount개의 여행을 불러왔습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('불러오기 실패: $e')),
+        );
+      }
+    }
   }
 
   void _deleteTrip(BuildContext context, int tripId, String tripName) {
@@ -204,14 +254,56 @@ class TripsListScreen extends StatelessWidget {
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsScreen()),
-              );
-            },
+          Consumer<ExpenseProvider>(
+            builder: (context, provider, _) => PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: '더보기',
+              onSelected: (value) {
+                if (value == 'export_all') {
+                  _exportAllTrips(context, provider);
+                } else if (value == 'import') {
+                  _importTrips(context, provider);
+                } else if (value == 'settings') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  );
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'export_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.save_alt, color: Color(0xFF6C63FF), size: 20),
+                      SizedBox(width: 8),
+                      Text('전체 여행 저장'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'import',
+                  child: Row(
+                    children: [
+                      Icon(Icons.upload_file, color: Color(0xFF6C63FF), size: 20),
+                      SizedBox(width: 8),
+                      Text('여행 불러오기'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, color: Colors.grey, size: 20),
+                      SizedBox(width: 8),
+                      Text('설정'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

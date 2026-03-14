@@ -361,4 +361,80 @@ class ExpenseProvider extends ChangeNotifier {
   double get budget {
     return _activeTrip?.budget ?? 0;
   }
+
+  // 특정 여행의 지출/수입 조회 (백업 내보내기용)
+  Future<List<Expense>> getExpensesForTrip(int tripId) async {
+    return await _dbHelper.getExpensesByTrip(tripId);
+  }
+
+  Future<List<Income>> getIncomesForTrip(int tripId) async {
+    return await _dbHelper.getIncomesByTrip(tripId);
+  }
+
+  Future<Map<int, List<Expense>>> getAllTripExpenses() async {
+    final map = <int, List<Expense>>{};
+    for (final trip in _trips) {
+      map[trip.id!] = await _dbHelper.getExpensesByTrip(trip.id!);
+    }
+    return map;
+  }
+
+  Future<Map<int, List<Income>>> getAllTripIncomes() async {
+    final map = <int, List<Income>>{};
+    for (final trip in _trips) {
+      map[trip.id!] = await _dbHelper.getIncomesByTrip(trip.id!);
+    }
+    return map;
+  }
+
+  /// JSON 백업에서 여행 하나를 가져와 DB에 추가합니다.
+  Future<int> importTripData(Map<String, dynamic> tripData) async {
+    final tripMap = tripData['trip'] as Map<String, dynamic>;
+    final expList = (tripData['expenses'] as List<dynamic>).cast<Map<String, dynamic>>();
+    final incList = (tripData['incomes'] as List<dynamic>).cast<Map<String, dynamic>>();
+
+    final trip = Trip(
+      name: tripMap['name'] as String,
+      country: tripMap['country'] as String,
+      startDate: DateTime.parse(tripMap['startDate'] as String),
+      endDate: DateTime.parse(tripMap['endDate'] as String),
+      currency: tripMap['currency'] as String,
+      budget: (tripMap['budget'] as num).toDouble(),
+      isActive: false,
+    );
+
+    final tripId = await _dbHelper.insertTrip(trip);
+
+    for (final expMap in expList) {
+      final expense = Expense(
+        tripId: tripId,
+        amount: (expMap['amount'] as num).toDouble(),
+        category: expMap['category'] as String,
+        paymentMethod: expMap['paymentMethod'] as String,
+        date: DateTime.parse(expMap['date'] as String),
+        title: expMap['title'] as String?,
+        note: expMap['note'] as String?,
+        latitude: expMap['latitude'] != null ? (expMap['latitude'] as num).toDouble() : null,
+        longitude: expMap['longitude'] != null ? (expMap['longitude'] as num).toDouble() : null,
+        locationName: expMap['locationName'] as String?,
+        originalCurrency: expMap['originalCurrency'] as String?,
+        originalAmount: expMap['originalAmount'] != null ? (expMap['originalAmount'] as num).toDouble() : null,
+      );
+      await _dbHelper.insertExpense(expense);
+    }
+
+    for (final incMap in incList) {
+      final income = Income(
+        tripId: tripId,
+        amount: (incMap['amount'] as num).toDouble(),
+        date: DateTime.parse(incMap['date'] as String),
+        note: incMap['note'] as String?,
+      );
+      await _dbHelper.insertIncome(income);
+    }
+
+    _trips = await _dbHelper.getAllTrips();
+    notifyListeners();
+    return tripId;
+  }
 }
